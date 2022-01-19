@@ -1,12 +1,10 @@
 """ Worlde.py """
 from pathlib import Path
-from typing import Union
 
 import argparse
 import logging
-import re
+import math
 import yaml
-import sys
 
 
 iters = {
@@ -19,11 +17,122 @@ iters = {
 }
 
 
-def get_logger():
+def get_logger(alg_info: dict) -> logging.Logger:
     """ Generates logger object """
+    logger = logging.getLogger(alg_info["NAME"])
+    level = logging.getLevelName(alg_info["LEVEL"])
+    logger.setLevel(level)
+    # fmtstr = "'%(asctime)s - %(name)s - %(levelname)s - %(message)s'"
+    # formatter = logging.Formatter(fmtstr)
+    # logger.setFormatter(formatter)
+    return logger
+
+def char_distribution(words, logger) -> str:
+    """ Returns a graph of char distribution
+
+    Similar to the blow
+             X
+             X  X
+        X    XXXX  XX   X
+     X  XX  XXXXX  XXXX XX  X
+    XXXXXXXXXXXXXXXXXXXXXXXXXX
+    abcdefghijklmnopqrstuvwxyz
+    """
+    alpha = {
+        'a': 0,
+        'b': 0,
+        'c': 0,
+        'd': 0,
+        'e': 0,
+        'f': 0,
+        'g': 0,
+        'h': 0,
+        'i': 0,
+        'j': 0,
+        'k': 0,
+        'l': 0,
+        'm': 0,
+        'n': 0,
+        'o': 0,
+        'p': 0,
+        'q': 0,
+        'r': 0,
+        's': 0,
+        't': 0,
+        'u': 0,
+        'v': 0,
+        'w': 0,
+        'x': 0,
+        'y': 0,
+        'z': 0
+    }
+    char_count = 0
+    for word in words:
+        for char in word:
+            char_count += 1
+            alpha[char] = alpha[char] + 1
+
+    output = ""
+    max_count = 0
+    for _, value in alpha.items():
+        max_count = max(value, max_count)
+
+    scale = 25
+    matrix = []
+    for char, value in alpha.items():
+        temp = [char]
+        print("max:", max_count)
+        val = math.floor((value/max_count)*scale)
+        print(char, value, val)
+        for _ in range(val):
+            temp.append('X')
+
+        for _ in range(scale-val):
+            temp.append(' ')
+
+        matrix.append(temp)
+
+    print(matrix)
+
+    for column in matrix:
+        for row in column:
+            output = f"{output}{row}"
+        output = f"{output}\n"
+
+    return output
 
 
-def get_possible(cchars: list, available: list[str], previous: list[str]) -> list:
+
+def get_nchars(contains, previous, logger):
+    neg_chars = []
+    # Get list of chars that are not in the word from previous guesses.
+    for word in previous:
+        for char in word:
+            if char not in contains and char not in neg_chars:
+                neg_chars.append(char)
+    print("negative chars:", neg_chars)
+    return neg_chars
+
+
+def get_neg_words(available, neg_chars):
+    # for available words, if word contains a negative char, remove from available list
+    neg_words = []
+    for word in available:
+        print(word)
+        for nchar in neg_chars:
+            if word not in available:
+                continue
+            if nchar in word:
+                neg_words.append(word)
+                continue
+            print(f"\t{word} does not contain {nchar}")
+
+    print("negative words:", neg_words)
+    print("num negative words:", len(neg_words))
+    return neg_words
+
+
+def get_possible(cchars: list, available: list[str], previous: list[str], logger) -> list:
     """ Returns a list of possible strings """
     _available = available.copy()
     print("Available:", _available)
@@ -34,35 +143,16 @@ def get_possible(cchars: list, available: list[str], previous: list[str]) -> lis
         else:
             contains.append(chars)
 
-    neg_chars = []
-    # Get list of chars that are not in the word from previous guesses.
-    for word in previous:
-        for char in word:
-            if char not in contains and char not in neg_chars:
-                neg_chars.append(char)
-    print("negative chars:", neg_chars)
-    neg_words = []
-    # for available words, if word contains a negative char, remove from available list
-    for word in _available:
-        print(word)
-        for nchar in neg_chars:
-            # print("\t", nchar)
-            if word not in _available:
-                continue
-            if nchar in word:
-            #     print(f"\tAbout to remove {word}, index: {_available.index(word)}")
-            #     print(_available[_available.index(word)])
-            #     nword = _available.pop(_available.index(word))
-                neg_words.append(word)
-                continue
-            print(f"\t{word} does not contain {nchar}")
+    neg_chars = get_nchars(contains, previous, logger)
 
-    print("negative words:", neg_words)
-    print("num negative words:", len(neg_words))
+    neg_words = get_neg_words(_available, neg_chars)
 
     preproc = list(set(_available) - set(neg_words))
     print("preprocessed:", preproc)
+
     temp = []
+    # For words left in preproc, if the correct chars are not in the correct
+    # positions or contained in the word remove them from the list.
     for word in preproc:
         print(word)
         for char in cchars:
@@ -71,28 +161,14 @@ def get_possible(cchars: list, available: list[str], previous: list[str]) -> lis
                 print("\t", word, word[char[1]], char)
                 if word[char[1]] != char[0]:
                     print("\t", word[char[1]], "!=", char[0])
-                    try:
-                        # print(f"\tAbout to remove {word}, index: {preproc.index(word)}")
-                        # print("word from index:", preproc[preproc.index(word)])
-                        # preproc.pop(preproc.index(word))
-                        temp.append(word)
-                        break
-                    except ValueError:
-                        print(f"\tError thrown trying to pop {word}")
-                else:
-                    print(f"\t{word} has a valid position for {char[0]}")
+                    temp.append(word)
+                    break
+                print(f"\t{word} has a valid position for {char[0]}")
             else:
                 if char not in word:
-                    try:
-                        # print(f"\tAbout to remove {word}, index: {preproc.index(word)}")
-                        # print("word from index:", preproc[preproc.index(word)])
-                        # preproc.pop(preproc.index(word))
-                        temp.append(word)
-                        break
-                    except ValueError:
-                        print(f"\tError thrown trying to pop {word}")
-                else:
-                    print(f"\t{word} is valid for {char}")
+                    temp.append(word)
+                    break
+                print(f"\t{word} is valid for {char}")
 
     output = list(set(preproc) - set(temp))
     return output
@@ -114,6 +190,7 @@ def game(alg_spec: dict, logger: logging.Logger):
         res = input("Are any of the letters green or yellow? (g|y|n)" \
                     "  If there are both green and yellow letters respond " \
                     "with both g and y. ")
+
         if 'g' in res:
             correct = input("Which letters are green? ")
             if len(correct) > 1:
@@ -132,26 +209,31 @@ def game(alg_spec: dict, logger: logging.Logger):
             if known not in guess:
                 print(f"That letter is not in {guess}.")
 
-        print("Correct:", correct)
-        print("Known", known)
+        logger.debug(f"Correct: {correct}")
+        logger.debug(f"Known {known}")
 
         for char in correct:
             place = (char, guess.index(char))
             correct_chars.append(place)
         for char in known:
             correct_chars.append(char)
-        print("Correct characters:", correct_chars)
-        possible_words = get_possible(correct_chars, available, guesses)
-        # if len(possible_words) <= 10:
+
+        print(f"Correct characters: {correct_chars}")
+
+        possible_words = get_possible(correct_chars, available, guesses, logger)
+
         print("Remaining possible words:")
         available = possible_words.copy()
+        if len(available) < 100:
+            print(char_distribution(available, logger))
+
         while possible_words:
             try:
                 output = possible_words.pop()
-                for i in range(14):
+                for _ in range(14):
                     output = f"{output}, {possible_words.pop()}"
                 print(output)
-            except Exception:
+            except IndexError:
                 pass
         print(output, f"\nTotal remaining: {len(available)}")
         if len(available) == 1:
@@ -162,18 +244,17 @@ def main(conf_path: str):
     """ Driver """
     config = Path(conf_path)
     with open(config.as_posix(), encoding="utf-8") as file:
-        alg_info = yaml.safe_load(file.read())
-    print(alg_info)
-    logger = logging.getLogger()
-    game(alg_info["spec"], logger)
+        application_conf = yaml.safe_load(file.read())
+    logger = get_logger(application_conf["info"])
+    logger.debug(application_conf)
+    game(application_conf["spec"], logger)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Because machines are smarter than you.')
     parser.add_argument('config', nargs="?", help="application.yaml file")
     args = parser.parse_args()
-    if not args.config:
-        conf_path = Path("./application.yaml")
-    else:
-        conf_path = Path(args.config)
-    main(conf_path)
+    conf = Path("./application.yaml")
+    if args.config:
+        conf = Path(args.config)
+    main(conf)

@@ -1,6 +1,12 @@
+---
 version: 1.0
 arguments:
-  - &logging_level DEBUG
+  - &logging_level "DEBUG"
+
+info:
+  NAME: "WORDLE"
+  LEVEL: *logging_level
+  LOG_DIR: LOGS/
 
 spec:
   WORD_FILE: words.txt
