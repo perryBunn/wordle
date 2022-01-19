@@ -1,0 +1,6 @@
+version: 1.0
+arguments:
+  - &logging_level DEBUG
+
+spec:
+  WORD_FILE: words.txt

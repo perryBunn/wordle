@@ -1,0 +1,29 @@
+{
+    "folders": [
+        {
+            "path": ".",
+            /*"name": "root",*/
+            "folder_exclude_patterns": ["__pycache__"]
+        },
+    ],
+    "settings": {
+        "SublimeLinter.linters.flake8.disable": true,
+        "SublimeLinter.linters.pylint.disable": false,
+        "SublimeLinter.linters.pylint.excludes": "*/*.md",
+        // "SublimeLinter": {
+        //     "linters": {
+        //         "pylint":{
+        //             "args": [
+        //                 "--rcfile=${folder}/pylintrc"
+        //             ],
+        //             "python": "${folder}/venv/bin/python"
+        //         }
+        //     }
+        // },
+        // "SublimeLinter.linters.pylint.args": ["--rcfile=${folder}/pylintrc"],
+        "SublimeLinter.linters.pylint.python": "${folder}/venv/bin/python",
+        "SublimeLinter.linters.pylint.executable": "${folder}/venv/bin/pylint",
+    },
+    /*"build_systems": {}*/
+}
+//s
