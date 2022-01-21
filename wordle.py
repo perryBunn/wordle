@@ -46,7 +46,7 @@ def get_logger(alg_info: dict) -> logging.Logger:
 def char_distribution(words: list[str], contains: list[str], logger) -> str:
     """ Returns a graph of char distribution
 
-    Similar to the blow
+    Similar to the below
              X
              X  X
         X    XXXX  XX   X
@@ -55,32 +55,9 @@ def char_distribution(words: list[str], contains: list[str], logger) -> str:
     abcdefghijklmnopqrstuvwxyz
     """
     alpha = {
-        'a': 0,
-        'b': 0,
-        'c': 0,
-        'd': 0,
-        'e': 0,
-        'f': 0,
-        'g': 0,
-        'h': 0,
-        'i': 0,
-        'j': 0,
-        'k': 0,
-        'l': 0,
-        'm': 0,
-        'n': 0,
-        'o': 0,
-        'p': 0,
-        'q': 0,
-        'r': 0,
-        's': 0,
-        't': 0,
-        'u': 0,
-        'v': 0,
-        'w': 0,
-        'x': 0,
-        'y': 0,
-        'z': 0
+        'a': 0, 'b': 0, 'c': 0, 'd': 0, 'e': 0, 'f': 0, 'g': 0, 'h': 0, 'i': 0,
+        'j': 0, 'k': 0, 'l': 0, 'm': 0, 'n': 0, 'o': 0, 'p': 0, 'q': 0, 'r': 0,
+        's': 0, 't': 0, 'u': 0, 'v': 0, 'w': 0, 'x': 0, 'y': 0, 'z': 0
     }
     _contains = []
     for char in contains:
@@ -247,6 +224,8 @@ def game(alg_spec: dict, logger: logging.Logger):
 
         available = possible_words.copy()
 
+        if len(available) == 1:
+            break
 
         print("Remaining possible words:")
         while possible_words:
@@ -263,8 +242,7 @@ def game(alg_spec: dict, logger: logging.Logger):
             print("\nChar Distribution:")
             print(char_distribution(available, correct_chars, logger))
 
-        if len(available) == 1:
-            break
+
 
 
 def main(conf_path: str):
