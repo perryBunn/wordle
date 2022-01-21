@@ -16,6 +16,8 @@ iters = {
     5: "sixth"
 }
 
+scale = 25
+
 
 def get_logger(alg_info: dict) -> logging.Logger:
     """ Generates logger object """
@@ -27,7 +29,7 @@ def get_logger(alg_info: dict) -> logging.Logger:
     # logger.setFormatter(formatter)
     return logger
 
-def char_distribution(words, logger) -> str:
+def char_distribution(words, contains, logger) -> str:
     """ Returns a graph of char distribution
 
     Similar to the blow
@@ -74,29 +76,30 @@ def char_distribution(words, logger) -> str:
 
     output = ""
     max_count = 0
-    for _, value in alpha.items():
-        max_count = max(value, max_count)
+    for char, value in alpha.items():
+        if char not in contains:
+            max_count = max(value, max_count)
 
-    scale = 25
     matrix = []
     for char, value in alpha.items():
-        temp = [char]
-        print("max:", max_count)
-        val = math.floor((value/max_count)*scale)
-        print(char, value, val)
-        for _ in range(val):
-            temp.append('X')
+        if char not in contains:
+            temp = [char]
+            print("max:", max_count)
+            val = math.floor((value/max_count)*scale)
+            print(char, value, val)
+            for _ in range(val):
+                temp.append('X')
 
-        for _ in range(scale-val):
-            temp.append(' ')
+            for _ in range(scale-val):
+                temp.append(' ')
 
-        matrix.append(temp)
+            matrix.append(temp)
 
-    print(matrix)
+    logger.debug(f"{matrix}")
 
-    for column in matrix:
-        for row in column:
-            output = f"{output}{row}"
+    for row in range(scale, -1, -1):
+        for column in matrix:
+            output = f"{output}{column[row]}"
         output = f"{output}\n"
 
     return output
@@ -224,8 +227,8 @@ def game(alg_spec: dict, logger: logging.Logger):
 
         print("Remaining possible words:")
         available = possible_words.copy()
-        if len(available) < 100:
-            print(char_distribution(available, logger))
+        if len(available) < 1000:
+            print(char_distribution(available, correct_chars, logger))
 
         while possible_words:
             try:
