@@ -1,9 +1,14 @@
 """ Worlde.py """
+from datetime import datetime
 from pathlib import Path
+from logging.handlers import RotatingFileHandler
 
 import argparse
 import logging
 import math
+
+from tqdm import tqdm
+
 import yaml
 
 
@@ -16,7 +21,7 @@ iters = {
     5: "sixth"
 }
 
-scale = 25
+SCALE = 10
 
 
 def get_logger(alg_info: dict) -> logging.Logger:
@@ -24,12 +29,21 @@ def get_logger(alg_info: dict) -> logging.Logger:
     logger = logging.getLogger(alg_info["NAME"])
     level = logging.getLevelName(alg_info["LEVEL"])
     logger.setLevel(level)
-    # fmtstr = "'%(asctime)s - %(name)s - %(levelname)s - %(message)s'"
-    # formatter = logging.Formatter(fmtstr)
-    # logger.setFormatter(formatter)
+
+    now = datetime.now()
+    log_dir = Path(alg_info["LOG_DIR"])
+    log_dir.mkdir(exist_ok=True)
+    rotate_file = RotatingFileHandler(log_dir / f"wordle_{now.strftime('%Y%m%d')}.log")
+
+    fmtstr = "'%(asctime)s - %(name)s - %(levelname)s - %(message)s'"
+    formatter = logging.Formatter(fmtstr)
+    rotate_file.setFormatter(formatter)
+
+    logger.addHandler(rotate_file)
     return logger
 
-def char_distribution(words, contains, logger) -> str:
+
+def char_distribution(words: list[str], contains: list[str], logger) -> str:
     """ Returns a graph of char distribution
 
     Similar to the blow
@@ -68,6 +82,13 @@ def char_distribution(words, contains, logger) -> str:
         'y': 0,
         'z': 0
     }
+    _contains = []
+    for char in contains:
+        if isinstance(char, tuple):
+            _contains.append(char[0])
+        else:
+            _contains.append(char)
+
     char_count = 0
     for word in words:
         for char in word:
@@ -77,27 +98,27 @@ def char_distribution(words, contains, logger) -> str:
     output = ""
     max_count = 0
     for char, value in alpha.items():
-        if char not in contains:
+        if char not in _contains:
             max_count = max(value, max_count)
 
     matrix = []
     for char, value in alpha.items():
-        if char not in contains:
+        if char not in _contains:
             temp = [char]
-            print("max:", max_count)
-            val = math.floor((value/max_count)*scale)
-            print(char, value, val)
+            logger.debug(f"max: {max_count}")
+            val = math.floor((value/max_count)*SCALE)
+            logger.debug(f"{char}, {value}, {val}")
             for _ in range(val):
                 temp.append('X')
 
-            for _ in range(scale-val):
+            for _ in range(SCALE-val):
                 temp.append(' ')
 
             matrix.append(temp)
 
     logger.debug(f"{matrix}")
 
-    for row in range(scale, -1, -1):
+    for row in range(SCALE, -1, -1):
         for column in matrix:
             output = f"{output}{column[row]}"
         output = f"{output}\n"
@@ -105,40 +126,39 @@ def char_distribution(words, contains, logger) -> str:
     return output
 
 
-
-def get_nchars(contains, previous, logger):
+def get_nchars(contains: list[str], previous: list[str], logger) -> list[str]:
     neg_chars = []
     # Get list of chars that are not in the word from previous guesses.
     for word in previous:
         for char in word:
             if char not in contains and char not in neg_chars:
                 neg_chars.append(char)
-    print("negative chars:", neg_chars)
+    logger.debug(f"negative chars: {neg_chars}")
     return neg_chars
 
 
-def get_neg_words(available, neg_chars):
+def get_neg_words(available: list[str], neg_chars: list[str], logger) -> list[str]:
     # for available words, if word contains a negative char, remove from available list
     neg_words = []
-    for word in available:
-        print(word)
+    for word in tqdm(available, desc="Preprocessor"):
+        logger.debug(f"{word}")
         for nchar in neg_chars:
             if word not in available:
                 continue
             if nchar in word:
                 neg_words.append(word)
                 continue
-            print(f"\t{word} does not contain {nchar}")
+            logger.debug(f"\t{word} does not contain {nchar}")
 
-    print("negative words:", neg_words)
-    print("num negative words:", len(neg_words))
+    logger.debug(f"negative words: {neg_words}")
+    logger.debug(f"num negative words: {len(neg_words)}")
     return neg_words
 
 
 def get_possible(cchars: list, available: list[str], previous: list[str], logger) -> list:
     """ Returns a list of possible strings """
     _available = available.copy()
-    print("Available:", _available)
+    logger.debug(f"Available: {_available}")
     contains = []
     for chars in cchars:
         if isinstance(chars, tuple):
@@ -148,30 +168,30 @@ def get_possible(cchars: list, available: list[str], previous: list[str], logger
 
     neg_chars = get_nchars(contains, previous, logger)
 
-    neg_words = get_neg_words(_available, neg_chars)
+    neg_words = get_neg_words(_available, neg_chars, logger)
 
     preproc = list(set(_available) - set(neg_words))
-    print("preprocessed:", preproc)
+    logger.debug(f"preprocessed: {preproc}")
 
     temp = []
     # For words left in preproc, if the correct chars are not in the correct
     # positions or contained in the word remove them from the list.
-    for word in preproc:
-        print(word)
+    for word in tqdm(preproc, desc="Postprocessor"):
+        logger.debug(f"{word}")
         for char in cchars:
-            print("\t", char, type(char))
+            logger.debug(f"\t{char}, {type(char)}")
             if isinstance(char, tuple):
-                print("\t", word, word[char[1]], char)
+                logger.debug(f"\t{word}, {word[char[1]]}, {char}")
                 if word[char[1]] != char[0]:
-                    print("\t", word[char[1]], "!=", char[0])
+                    logger.debug(f"\t{word[char[1]]} != {char[0]}")
                     temp.append(word)
                     break
-                print(f"\t{word} has a valid position for {char[0]}")
+                logger.debug(f"\t{word} has a valid position for {char[0]}")
             else:
                 if char not in word:
                     temp.append(word)
                     break
-                print(f"\t{word} is valid for {char}")
+                logger.debug(f"\t{word} is valid for {char}")
 
     output = list(set(preproc) - set(temp))
     return output
@@ -191,7 +211,7 @@ def game(alg_spec: dict, logger: logging.Logger):
         guess = input(f"What word is your {iters[i]} guess? ")
         guesses.append(guess)
         res = input("Are any of the letters green or yellow? (g|y|n)" \
-                    "  If there are both green and yellow letters respond " \
+                    "\n  If there are both green and yellow letters respond " \
                     "with both g and y. ")
 
         if 'g' in res:
@@ -221,15 +241,14 @@ def game(alg_spec: dict, logger: logging.Logger):
         for char in known:
             correct_chars.append(char)
 
-        print(f"Correct characters: {correct_chars}")
+        logger.debug(f"Correct characters: {correct_chars}")
 
         possible_words = get_possible(correct_chars, available, guesses, logger)
 
-        print("Remaining possible words:")
         available = possible_words.copy()
-        if len(available) < 1000:
-            print(char_distribution(available, correct_chars, logger))
 
+
+        print("Remaining possible words:")
         while possible_words:
             try:
                 output = possible_words.pop()
@@ -239,6 +258,11 @@ def game(alg_spec: dict, logger: logging.Logger):
             except IndexError:
                 pass
         print(output, f"\nTotal remaining: {len(available)}")
+
+        if len(available) < 1000:
+            print("\nChar Distribution:")
+            print(char_distribution(available, correct_chars, logger))
+
         if len(available) == 1:
             break
 
