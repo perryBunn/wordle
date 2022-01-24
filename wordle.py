@@ -35,7 +35,7 @@ def get_logger(alg_info: dict) -> logging.Logger:
     log_dir.mkdir(exist_ok=True)
     rotate_file = RotatingFileHandler(log_dir / f"wordle_{now.strftime('%Y%m%d')}.log")
 
-    fmtstr = "'%(asctime)s - %(name)s - %(levelname)s - %(message)s'"
+    fmtstr = "'%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     formatter = logging.Formatter(fmtstr)
     rotate_file.setFormatter(formatter)
 
@@ -88,12 +88,15 @@ def char_distribution(words: list[str], contains: list[str], logger) -> str:
             _contains.append(char[0])
         else:
             _contains.append(char)
-
-    char_count = 0
+    logger.debug(f"contains: {_contains}")
+    logger.debug("populating alphadict")
+    logger.debug(f"{words}")
     for word in words:
+        logger.debug(f"{word}")
         for char in word:
-            char_count += 1
+            logger.debug(f"{char}")
             alpha[char] = alpha[char] + 1
+    logger.debug(f"alpha: {alpha}")
 
     output = ""
     max_count = 0
@@ -123,7 +126,7 @@ def char_distribution(words: list[str], contains: list[str], logger) -> str:
             output = f"{output}{column[row]}"
         output = f"{output}\n"
 
-    return output
+    return output, alpha
 
 
 def get_nchars(contains: list[str], previous: list[str], logger) -> list[str]:
@@ -155,6 +158,40 @@ def get_neg_words(available: list[str], neg_chars: list[str], logger) -> list[st
     return neg_words
 
 
+def get_neg_positions(cchars: list, available: list[str], previous: list[str], logger) -> list[str]:
+    neg_positions = []
+    for char in tqdm(cchars, desc="Postprocessor"):
+        logger.debug(f"{char}")
+        if isinstance(char, tuple):
+            continue
+        for word in available:
+            if char in word:
+                for pword in previous:
+                    if char not in pword:
+                        continue
+                    pindex = pword.index(char)
+                    if word[pindex] == char:
+                        neg_positions.append(word)
+
+    return neg_positions
+
+
+def get_guess(available: list[str], distribution: dict, logger) -> str:
+    size = len(available)
+    guesses = []
+    for word in tqdm(available, desc="Getting guesses"):
+        den = []
+        density = 1
+        for char in word:
+            den.append(distribution[char]/size)
+        for i in den:
+            density *= i
+        guesses.append((word, density))
+    guesses = sorted(guesses, key = lambda x: x[1], reverse=True)
+    logger.debug(guesses)
+    return guesses[:5], guesses[-5:]
+
+
 def get_possible(cchars: list, available: list[str], previous: list[str], logger) -> list:
     """ Returns a list of possible strings """
     _available = available.copy()
@@ -173,10 +210,10 @@ def get_possible(cchars: list, available: list[str], previous: list[str], logger
     preproc = list(set(_available) - set(neg_words))
     logger.debug(f"preprocessed: {preproc}")
 
-    temp = []
+    pre_temp = []
     # For words left in preproc, if the correct chars are not in the correct
     # positions or contained in the word remove them from the list.
-    for word in tqdm(preproc, desc="Postprocessor"):
+    for word in tqdm(preproc, desc="Processer"):
         logger.debug(f"{word}")
         for char in cchars:
             logger.debug(f"\t{char}, {type(char)}")
@@ -184,16 +221,20 @@ def get_possible(cchars: list, available: list[str], previous: list[str], logger
                 logger.debug(f"\t{word}, {word[char[1]]}, {char}")
                 if word[char[1]] != char[0]:
                     logger.debug(f"\t{word[char[1]]} != {char[0]}")
-                    temp.append(word)
+                    pre_temp.append(word)
                     break
                 logger.debug(f"\t{word} has a valid position for {char[0]}")
             else:
                 if char not in word:
-                    temp.append(word)
+                    pre_temp.append(word)
                     break
                 logger.debug(f"\t{word} is valid for {char}")
 
-    output = list(set(preproc) - set(temp))
+    postproc = list(set(preproc) - set(pre_temp))
+    logger.debug(f"postprocessed: {postproc}")
+    post_temp = get_neg_positions(cchars, postproc, previous, logger)
+    output = list(set(postproc) - set(post_temp))
+    logger.debug(f"output: {output}")
     return output
 
 
@@ -206,14 +247,22 @@ def game(alg_spec: dict, logger: logging.Logger):
 
     guesses = []
     correct_chars = []
+
+    print(f"Possible words: {len(available)}")
+    # print("Char Distribution:")
+    # graph, _ = char_distribution(available, correct_chars, logger)
+    # print(graph)
+
     for i in range(6):
         correct, known = '', ''
         guess = input(f"What word is your {iters[i]} guess? ")
         guesses.append(guess)
         res = input("Are any of the letters green or yellow? (g|y|n)" \
-                    "\n  If there are both green and yellow letters respond " \
+                    "\nIf there are both green and yellow letters respond " \
                     "with both g and y. ")
-
+        if 'g' not in res and 'y' not in res:
+            print(f"{res} is not an acceptable response.")
+            return
         if 'g' in res:
             correct = input("Which letters are green? ")
             if len(correct) > 1:
@@ -222,7 +271,6 @@ def game(alg_spec: dict, logger: logging.Logger):
                         print(f"At least 1 of those letters is not in {guess}.")
             if correct not in guess:
                 print(f"That letter is not in {guess}.")
-
         if 'y' in res:
             known = input("Which letters are yellow? ")
             if len(known) > 1:
@@ -236,17 +284,16 @@ def game(alg_spec: dict, logger: logging.Logger):
         logger.debug(f"Known {known}")
 
         for char in correct:
+            if char in correct_chars:
+                _ = correct_chars.pop(correct_chars.index(char))
             place = (char, guess.index(char))
             correct_chars.append(place)
         for char in known:
             correct_chars.append(char)
 
         logger.debug(f"Correct characters: {correct_chars}")
-
         possible_words = get_possible(correct_chars, available, guesses, logger)
-
         available = possible_words.copy()
-
 
         print("Remaining possible words:")
         while possible_words:
@@ -259,13 +306,21 @@ def game(alg_spec: dict, logger: logging.Logger):
                 pass
         print(output, f"\nTotal remaining: {len(available)}")
 
-        if len(available) < 1000:
-            print("\nChar Distribution:")
-            print(char_distribution(available, correct_chars, logger))
-
         if len(available) == 1:
             break
 
+        print("\nChar Distribution:")
+        graph, distribution = char_distribution(available.copy(), correct_chars, logger)
+        print(graph)
+
+        top_guesses, _ = get_guess(available.copy(), distribution, logger)
+        print("Best Guesses:")
+        for best in top_guesses:
+            print(f"  - {best[0]}")
+
+
+
+    print("Better luck tomorrow")
 
 def main(conf_path: str):
     """ Driver """
