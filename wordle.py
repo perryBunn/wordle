@@ -260,7 +260,7 @@ def game(alg_spec: dict, logger: logging.Logger):
         res = input("Are any of the letters green or yellow? (g|y|n)" \
                     "\nIf there are both green and yellow letters respond " \
                     "with both g and y. ")
-        if 'g' not in res and 'y' not in res:
+        if 'g' not in res and 'y' not in res and 'n' not in res:
             print(f"{res} is not an acceptable response.")
             return
         if 'g' in res:
@@ -284,9 +284,15 @@ def game(alg_spec: dict, logger: logging.Logger):
         logger.debug(f"Known {known}")
 
         for char in correct:
+            position = None
+            if guess.count(char) > 1:
+                position = int(input(f"There are more than one occurrences of {char}. Enter the position of {char}, where {guess[0]} is 1: ")) - 1
             if char in correct_chars:
                 _ = correct_chars.pop(correct_chars.index(char))
-            place = (char, guess.index(char))
+            if position:
+                place = (char, position)
+            else:
+                place = (char, guess.index(char))
             correct_chars.append(place)
         for char in known:
             correct_chars.append(char)
