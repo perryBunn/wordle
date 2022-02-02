@@ -6,7 +6,8 @@ arguments:
 info:
   NAME: "WORDLE"
   LEVEL: *logging_level
-  LOG_DIR: LOGS/
+  LOG_DIR: ./logs/
 
 spec:
-  WORD_FILE: words.txt
+  WORD_FILE: clean_words_v2.txt
+  DATA_DIR: ./data/

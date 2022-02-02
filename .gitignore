@@ -1,4 +1,4 @@
-LOGS/
+logs/
 venv/
 *.sublime-workspace
 
